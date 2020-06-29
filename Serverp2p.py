@@ -16,7 +16,7 @@ def servirPorSiempre(socketTcp, listaConexiones):
     try:
         while True:
             Client_conn, Client_addr = socketTcp.accept()
-            print("Conectado a", Client_addr)
+            #print("Conectado a", Client_addr)
             gestion_conexiones(listaConexiones, Client_conn)
             thread_read = threading.Thread(target=ShareFunction, args=[Client_conn])
             thread_read.start()
@@ -24,9 +24,8 @@ def servirPorSiempre(socketTcp, listaConexiones):
         print(e)
 
 def ShareFunction(Client_Conn):
-
+    ArchivosDisponibles(Client_Conn)
     filename = Client_Conn.recv(1024)
-
     filename = filename.decode('utf-8')
     if os.path.isfile(filename):
         win = "EXISTE " + str(os.path.getsize(filename))
@@ -45,12 +44,17 @@ def ShareFunction(Client_Conn):
 
     Client_Conn.close()
 
+def ArchivosDisponibles(Client_Conn):
+    Datos = os.listdir(".")
+    Datos = str(Datos)
+    Client_Conn.send(str.encode(Datos))
+
 def gestion_conexiones(listaconexiones, conn):
     listaconexiones.append(conn)
     for conn in listaconexiones:
         if conn.fileno() == -1:
             listaconexiones.remove(conn)
-    print("conexiones: ", len(listaconexiones))
+    #print("conexiones: ", len(listaconexiones))
 
 def modo_Usuario():
     encendido = -1
@@ -58,44 +62,49 @@ def modo_Usuario():
         encendido = BuscarFile()
 
 def BuscarFile():
-    print("[1] Buscar Archivo\n[0] Salir")
+    print("200 OK\n" + "[1] Buscar Archivo\n")
     resp = int(input())
     if resp == 1:
         HOST = "127.0.0.1"
         PORT = 12357
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as TCPClientsocket:
             TCPClientsocket.connect((HOST, PORT))
+            lista = TCPClientsocket.recv(1024)
+            lista = lista.decode('utf-8')
+            print("\nArchivos disponibles en la Red\n" +lista)
+            opcion = int(input("[1] Aceptar\n[0] Cancelar\n"))
+            if (opcion == 1):
+                filename = input("Archivo: ")
+                filename = str(filename)
+                if filename != 'q':
+                    TCPClientsocket.send(str.encode(filename))
+                    data = TCPClientsocket.recv(1024)
+                    data = data.decode('utf-8')
 
-            filename = input("Archivo: ")
-            filename = str(filename)
-            if filename != 'q':
-                TCPClientsocket.send(str.encode(filename))
-                data = TCPClientsocket.recv(1024)
-                data = data.decode('utf-8')
-
-                if data[:6] == "EXISTE":
-                    tamFile = float(data[6:])
-                    mensaje = input("Archivo Existente, "+str(tamFile)+\
-                        "Bytes, ¿Desea Descargarlo? [Y/N]? -> ")
-                    if mensaje == 'Y':
-                        TCPClientsocket.send(str.encode("OK"))
-                        f = open('new_'+filename ,'w')
-                        data = TCPClientsocket.recv(1024)
-                        data = data.decode('utf-8')
-                        totalRecv = len(data)
-                        f.write(data)
-                        while totalRecv < tamFile:
+                    if data[:6] == "EXISTE":
+                        tamFile = float(data[6:])
+                        mensaje = input("Archivo Existente, " + str(tamFile) + \
+                                        "Bytes, ¿Desea Descargarlo? [Y/N]? -> ")
+                        if mensaje == 'Y':
+                            TCPClientsocket.send(str.encode("OK"))
+                            f = open('new_' + filename, 'w')
                             data = TCPClientsocket.recv(1024)
                             data = data.decode('utf-8')
-                            totalRecv += len(data)
+                            totalRecv = len(data)
                             f.write(data)
-                            print ("{0: 2f}".format((totalRecv/float(tamFile))*100)+\
-                                    "% Done")
-
-                        print("Descarga Completa")
-                else:
-                    print("El archivo no existe")
-            #TCPClientsocket.close()
+                            while totalRecv < tamFile:
+                                data = TCPClientsocket.recv(1024)
+                                data = data.decode('utf-8')
+                                totalRecv += len(data)
+                                f.write(data)
+                                print("{0: 2f}".format((totalRecv / float(tamFile)) * 100) + \
+                                      "% Done")
+                            print("Descarga Completa")
+                    else:
+                        print("El archivo no existe")
+                # TCPClientsocket.close()
+            else:
+                print("\nVuelve Pronto\n")
 
     return resp
 
